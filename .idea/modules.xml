@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/mina-server.iml" filepath="$PROJECT_DIR$/mina-server.iml" />
+      <module fileurl="file://$PROJECT_DIR$/minaserver.iml" filepath="$PROJECT_DIR$/minaserver.iml" />
+    </modules>
+  </component>
+</project>
