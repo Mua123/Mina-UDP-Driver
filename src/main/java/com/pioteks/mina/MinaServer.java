@@ -28,11 +28,11 @@ public class MinaServer {
         chain.addLast("threadPool",new ExecutorFilter(Executors.newCachedThreadPool()));
         chain.addLast("logger", new LoggingFilter());
         // 设置MINA2的IoHandler实现类
-        acceptor.setHandler(new MyMinaHandler());
+        acceptor.setHandler(new ServerHandler());
         // 设置会话超时时间（单位：毫秒），不设置则默认是10秒，请按需设置
         acceptor.setSessionRecycler(new ExpiringSessionRecycler(15 * 1000));
 
-        // ** UDP通信配置
+        // ** UDP通信配置 设置是否重用地址？也就是每个发过来的udp信息都是一个地址？
         DatagramSessionConfig dcfg = acceptor.getSessionConfig();
         dcfg.setReuseAddress(true);
         // 设置输入缓冲区的大小，压力测试表明：调整到2048后性能反而降低

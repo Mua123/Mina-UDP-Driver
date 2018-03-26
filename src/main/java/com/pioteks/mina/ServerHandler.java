@@ -10,20 +10,36 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 
 import org.apache.mina.core.buffer.IoBuffer;
+import org.apache.mina.core.future.ConnectFuture;
 import org.apache.mina.core.future.WriteFuture;
+import org.apache.mina.core.service.IoConnector;
 import org.apache.mina.core.service.IoHandlerAdapter;
 import org.apache.mina.core.session.IdleStatus;
 import org.apache.mina.core.session.IoSession;
+import org.apache.mina.filter.codec.ProtocolCodecFilter;
+import org.apache.mina.filter.codec.textline.LineDelimiter;
+import org.apache.mina.filter.codec.textline.TextLineCodecFactory;
+import org.apache.mina.transport.socket.nio.NioDatagramConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.pioteks.utils.BytesHexString;
 
-public class MyMinaHandler extends IoHandlerAdapter {
+public class ServerHandler extends IoHandlerAdapter {
 
-    public static final Logger logger=LoggerFactory.getLogger(MyMinaHandler.class);
+    public static final Logger logger=LoggerFactory.getLogger(ServerHandler.class);
     public static final CharsetDecoder decoder = (Charset.forName("UTF-8")).newDecoder();
     public static DatagramSocket socket = null;
+    
+	// 定义发送数据报的目的地  
+    public static final int DEST_PORT = 30000;  
+    public static final String DEST_IP = "127.0.0.1";  
+    // 定义每个数据报的最大大小为4KB  
+    private static final int DATA_LEN = 4096;     
+    // 定义接收网络数据的字节数组  
+    byte[] inBuff = new byte[DATA_LEN];  
+    // 定义一个用于发送的DatagramPacket对象  
+    private DatagramPacket outPacket = null; 
         /**
          * MINA的异常回调方法。
          * <p>
@@ -101,44 +117,40 @@ public class MyMinaHandler extends IoHandlerAdapter {
                 all = addBytes(all, ":".getBytes());
                 
                 
-                result = send(all);//将NB模块的IP和端口信息转化为字符串，发送
-                System.out.println(new String(all, 0, all.length));
-                System.out.println(new String(result, 0, result.length));
+                //将NB模块的IP和端口信息转化为字符串，发送
+                
+//                result = send(all, session);	//使用传统方式进行内部通信
+                
+                clientSend(all, session);		// 使用NIMA框架进行内部通信
             }
-            	
-            //*********************************************** 回复数据
-
-            // 组织IoBuffer数据包的方法：本方法才可以正确地让客户端UDP收到byte数组
-            IoBuffer buf = IoBuffer.wrap(result);
-
-            // 向客户端写数据
-            WriteFuture future = session.write(buf);
-            // 在100毫秒超时间内等待写完成
-            future.awaitUninterruptibly(100);
-            // The message has been written successfully
-            if( future.isWritten() ) {
-                System.out.println("return successfully");
-                logger.info("return successfully");
-            }else{
-                System.out.println("return failed");
-                logger.info("return failed");
-            }
-            
-            
         }
         
-        // 定义发送数据报的目的地  
-        public static final int DEST_PORT = 30000;  
-        public static final String DEST_IP = "127.0.0.1";  
-        // 定义每个数据报的最大大小为4KB  
-        private static final int DATA_LEN = 4096;     
-        // 定义接收网络数据的字节数组  
-        byte[] inBuff = new byte[DATA_LEN];  
-        // 以指定的字节数组创建准备接收数据的DatagramPacket对象  
-//        private DatagramPacket inPacket =   null;
-        // 定义一个用于发送的DatagramPacket对象  
-        private DatagramPacket outPacket = null;  
-        public byte[] send(byte[] buff)throws IOException  
+        private void clientSend(byte[] all, IoSession session) throws InterruptedException {
+		
+        	UDPInnerClient udpClient=new UDPInnerClient(DEST_IP,DEST_PORT);  
+            udpClient.setConnector(new NioDatagramConnector());  
+            udpClient.getConnector().setHandler(new InnerClientIoHandler());  
+            IoConnector connector=udpClient.getConnector();  
+//            connector.getFilterChain().addLast("codec",   		//客户端和服务器使用的过滤器不一致将导致接受不到信息
+//                    new ProtocolCodecFilter(  
+//                            new TextLineCodecFactory(  
+//                                    Charset.forName("UTF-8"),   
+//                                    LineDelimiter.WINDOWS.getValue(),  
+//                                    LineDelimiter.WINDOWS.getValue())));  
+//              
+            ConnectFuture connectFuture=connector.connect(udpClient.getInetSocketAddress());  
+            // 等待是否连接成功，相当于是转异步执行为同步执行。  
+            connectFuture.awaitUninterruptibly();  
+            //连接成功后获取会话对象。如果没有上面的等待，由于connect()方法是异步的，  
+            //connectFuture.getSession(),session可能会无法获取。  
+            udpClient.setSession(connectFuture.getSession());  
+            udpClient.getSession().setAttribute("session_NB", session);
+            IoBuffer buf = IoBuffer.wrap(all);
+            udpClient.getSession().write(buf);  
+        }
+
+ 
+        public byte[] send(byte[] buff, IoSession session)throws IOException  
         {  
                 // 创建一个客户端DatagramSocket，使用端口30001发送  
                 if(socket == null) {
@@ -154,12 +166,28 @@ public class MyMinaHandler extends IoHandlerAdapter {
                 // 读取Socket中的数据，读到的数据放在inPacket所封装的字节数组中  
                 DatagramPacket inPacket = new DatagramPacket(inBuff , inBuff.length);  
                 socket.receive(inPacket);  
-//                System.out.println(new String(inBuff , 0 , inPacket.getLength()));  
-//                String msg=new String(inPacket.getData(), 0, inPacket.getLength());
                 byte[] bytes = inPacket.getData();
                 
                 byte[] result = new byte[inPacket.getLength()];
                 System.arraycopy(bytes, 0, result, 0, result.length);
+                
+  //*********************************************** 回复数据
+    
+                // 组织IoBuffer数据包的方法：本方法才可以正确地让客户端UDP收到byte数组
+                IoBuffer buf = IoBuffer.wrap(result);
+    
+                // 向客户端写数据
+                WriteFuture future = session.write(buf);
+                // 在100毫秒超时间内等待写完成
+                future.awaitUninterruptibly(100);
+                // The message has been written successfully
+                if( future.isWritten() ) {
+                    System.out.println("return successfully");
+                    logger.info("return successfully");
+                }else{
+                    System.out.println("return failed");
+                    logger.info("return failed");
+                }
                 return result;
             
         }  
