@@ -11,18 +11,18 @@ import org.apache.mina.filter.codec.textline.LineDelimiter;
 import org.apache.mina.filter.codec.textline.TextLineCodecFactory;
 import org.apache.mina.transport.socket.nio.NioDatagramConnector;
 
-public class UDPClient {
+public class UDPInnerClient {
 	private InetSocketAddress inetSocketAddress;  
     
     private IoSession session;  
       
     private IoConnector connector;  
       
-    public UDPClient() {  
+    public UDPInnerClient() {  
         super();  
     }  
       
-    public UDPClient(String host,int port){  
+    public UDPInnerClient(String host,int port){  
           
         inetSocketAddress=new InetSocketAddress(host,port);  
           
