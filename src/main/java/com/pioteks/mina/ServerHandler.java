@@ -54,6 +54,8 @@ public class ServerHandler extends IoHandlerAdapter {
     public ServerHandler(Command command, List<String> messageList) {
     	this.command = command;
     	this.messageList = messageList;
+    	
+//    	System.out.println("run into Handler");
     }
     
     /**
